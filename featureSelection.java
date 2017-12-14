@@ -23,6 +23,7 @@ public class featureSelection {
     public static class best{
         public static Set<Integer> featureSelection = new HashSet<Integer>();
         public static double accuracy = 0.0;
+        public static int min_count = 0;
     }
     
     //The list of data will be filled up in here
@@ -70,7 +71,7 @@ public class featureSelection {
         
         for(int i = 0; i < gv.numFeatures + 1; ++i){                //new items
             gv.meanValue.add(gv.totalValue.get(i)/gv.numLines);      //new items
-            StdOut.println(gv.meanValue.get(i));
+            //StdOut.println(gv.meanValue.get(i));
         }                                                           //new items
         
         for(int i = 0; i < gv.numFeatures+1; ++i){  //iterate through dataset and find variance sum
@@ -84,13 +85,13 @@ public class featureSelection {
                 }
                 
             }
-            StdOut.println(gv.variance.get(i));
+            //StdOut.println(gv.variance.get(i));
         }
         
         for(int i = 0; i < gv.numFeatures + 1; ++i){
             gv.variance.set(i,gv.variance.get(i)/(gv.numLines-1));
             gv.stdDev.add(Math.sqrt(gv.variance.get(i)));
-            StdOut.println(gv.stdDev.get(i));
+            //StdOut.println(gv.stdDev.get(i));
             
         }
         
@@ -147,6 +148,48 @@ public class featureSelection {
         return correct_classification/gv.numLines;
     }
     
+    public static double loocv(Set<Integer> current_set_of_features){
+        ArrayList<Integer> feats = new ArrayList<Integer>();
+        
+        Iterator<Integer> it = current_set_of_features.iterator();
+        while(it.hasNext()){
+            feats.add(it.next());
+        }
+
+        
+        double correct_classification = 0.0;
+        
+        for(int i = 0; i < gv.numLines; ++i){
+            int nn_index = 0;
+            double nearest_neighbor = Double.POSITIVE_INFINITY;
+            
+            for(int j = 0; j < gv.numLines; ++j){
+                double diff1 = 0.0;
+                double diff2 = 0.0;
+                double diff_sqr = 0.0;
+                double tmp_dist = 0.0;
+                if(i != j){
+                    for(int m = 0; m < feats.size(); ++m){
+                        diff1 = gv.dataList.get(feats.get(m)).get(i);
+                        diff2 = gv.dataList.get(feats.get(m)).get(j);
+                        diff_sqr = diff_sqr + Math.pow(diff2 - diff1,2);
+                    }
+                    tmp_dist = Math.sqrt(diff_sqr);
+                    if(tmp_dist < nearest_neighbor){
+                        nearest_neighbor = tmp_dist;
+                        nn_index = j;
+                    }
+                }
+            }
+            
+            if(Math.floor(gv.dataList.get(0).get(i)) == Math.floor(gv.dataList.get(0).get(nn_index))){
+                ++correct_classification;
+            }
+        }
+        
+        return correct_classification/gv.numLines;
+    }
+    
     
     public static void main(String[] args){
         int choice = 0;
@@ -159,7 +202,7 @@ public class featureSelection {
             StdOut.println("Type the number of the algorithm you want to run.");
             StdOut.println("    1)Forward Selection");
             StdOut.println("    2)Backward Elimination");
-            StdOut.println("    3)Bertie’s Special Algorithm");
+            StdOut.println("    3)Paul’s Special Algorithm");
             choice = StdIn.readInt();
             
             if(choice == 1 || choice == 2 || choice == 3){
@@ -179,43 +222,144 @@ public class featureSelection {
         StdOut.println("Done!" + '\n');
         
         Set<Integer> current_set_of_features = new HashSet<Integer>();
-        for(int i = 0; i < gv.numFeatures; ++i){
-            StdOut.println("On the " + (i+1) +"th level of the search tree");
-            int feature_to_add_at_this_level = 0;
-            double best_so_far_accuracy = 0.0;
+        
+        if(choice == 1){
+            for(int i = 0; i < gv.numFeatures; ++i){
+                StdOut.println("On the " + (i+1) +"th level of the search tree");
+                int feature_to_add_at_this_level = 0;
+                double best_so_far_accuracy = 0.0;
             
-            for(int j = 0; j < gv.numFeatures; ++j){
-                if(!current_set_of_features.contains(j+1)){
-                    StdOut.print("--Considering adding the " + (j+1) + " feature: ");
-                    double accuracy = leave_one_out_cross_validation(current_set_of_features,j+1);
+                for(int j = 0; j < gv.numFeatures; ++j){
+                    if(!current_set_of_features.contains(j+1)){
+                        StdOut.print("--Considering adding the " + (j+1) + " feature: ");
+                        double accuracy = leave_one_out_cross_validation(current_set_of_features,j+1);
     
-                    StdOut.println(accuracy + "% accuracy");
+                        StdOut.println(accuracy + "% accuracy");
                     
-                    if(accuracy > best_so_far_accuracy){
-                        best_so_far_accuracy = accuracy;
-                        feature_to_add_at_this_level = (j+1);
+                        if(accuracy > best_so_far_accuracy){
+                            best_so_far_accuracy = accuracy;
+                            feature_to_add_at_this_level = (j+1);
+                        }
                     }
                 }
+                current_set_of_features.add(feature_to_add_at_this_level);
+                if(best_so_far_accuracy > best.accuracy){
+                    best.accuracy = best_so_far_accuracy;
+                    if(!best.featureSelection.isEmpty()){
+                        best.featureSelection.clear();
+                        Iterator<Integer> it = current_set_of_features.iterator();
+                        while(it.hasNext()){
+                            best.featureSelection.add(it.next());
+                        }
+                    
+                    }
+                
+                    else{
+                        best.featureSelection.add(feature_to_add_at_this_level);
+                    }
+                }
+                StdOut.println("On level " + (i+1) + " i added feature " + feature_to_add_at_this_level + " to current set with " + best_so_far_accuracy + " accuracy" + '\n');
             }
-            current_set_of_features.add(feature_to_add_at_this_level);
-            if(best_so_far_accuracy > best.accuracy){
-                best.accuracy = best_so_far_accuracy;
-                if(!best.featureSelection.isEmpty()){
-                    best.featureSelection.clear();
+            
+        }
+        
+        else if(choice == 2){
+            
+            for(int i = 1; i <= gv.numFeatures; ++i){
+                current_set_of_features.add(i);
+            }
+            
+            for(int i = 0; i < gv.numFeatures; ++i){
+                StdOut.println("On the " + (i+1) +"th level of the search tree");
+                int feature_to_remove_at_this_level = 0;
+                double best_so_far_accuracy = 0.0;
+                
+                for(int j = 0; j < gv.numFeatures; ++j){
+                    if(current_set_of_features.contains(j+1)){
+                        StdOut.print("--Considering removing the " + (j+1) + " feature: ");
+                        current_set_of_features.remove(j+1);
+                        double accuracy = loocv(current_set_of_features);
+                        current_set_of_features.add(j+1);
+                        
+                        StdOut.println(accuracy + "% accuracy");
+                        if(accuracy > best_so_far_accuracy){
+                            best_so_far_accuracy = accuracy;
+                            feature_to_remove_at_this_level = (j+1);
+                        }
+                    }
+                }
+                
+                current_set_of_features.remove(feature_to_remove_at_this_level);
+                if(best_so_far_accuracy > best.accuracy){
+                    best.accuracy = best_so_far_accuracy;
+                    if(!best.featureSelection.isEmpty()){
+                        best.featureSelection.clear();
+                    }
+                    
                     Iterator<Integer> it = current_set_of_features.iterator();
                     while(it.hasNext()){
                         best.featureSelection.add(it.next());
                     }
+            
+                       
+                }
+                StdOut.println("On level " + (i+1) + " i removed feature " + feature_to_remove_at_this_level + " from current with " + best_so_far_accuracy + " accuracy" + '\n');
+            }
+        }
+        
+        else{
+            for(int i = 0; i < gv.numFeatures; ++i){
+                StdOut.println("On the " + (i+1) +"th level of the search tree");
+                int feature_to_add_at_this_level = 0;
+                double best_so_far_accuracy = 0.0;
+                
+                for(int j = 0; j < gv.numFeatures; ++j){
+                    if(!current_set_of_features.contains(j+1)){
+                        StdOut.print("--Considering adding the " + (j+1) + " feature: ");
+                        double accuracy = leave_one_out_cross_validation(current_set_of_features,j+1);
+                        
+                        StdOut.println(accuracy + "% accuracy");
+                        
+                        if(accuracy > best_so_far_accuracy){
+                            best_so_far_accuracy = accuracy;
+                            feature_to_add_at_this_level = (j+1);
+                        }
+                    }
+                }
+                current_set_of_features.add(feature_to_add_at_this_level);
+                if(best_so_far_accuracy > best.accuracy){
+                    best.min_count = 0;
+                    best.accuracy = best_so_far_accuracy;
+                    if(!best.featureSelection.isEmpty()){
+                        best.featureSelection.clear();
+                        Iterator<Integer> it = current_set_of_features.iterator();
+                        while(it.hasNext()){
+                            best.featureSelection.add(it.next());
+                        }
+                        
+                    }
                     
+                    else{
+                        best.featureSelection.add(feature_to_add_at_this_level);
+                    }
                 }
                 
                 else{
-                    best.featureSelection.add(feature_to_add_at_this_level);
+                    ++best.min_count;
+                }
+                
+                StdOut.println("On level " + (i+1) + " i added feature " + feature_to_add_at_this_level + " to current set with " + best_so_far_accuracy + " accuracy" + '\n');
+                
+                if(best.min_count == 3){
+                    StdOut.println("Algorithm has determined to not continue searching...");
+                    break;
                 }
             }
-            StdOut.println("On level " + (i+1) + " i added feature " + feature_to_add_at_this_level + " to current set");
         }
-        StdOut.println(best.featureSelection.size());
+        
+        
+        
+        //StdOut.println(best.featureSelection.size());
         StdOut.print("Finished! The best feature subset is {");
         Iterator<Integer> it = best.featureSelection.iterator();
         StdOut.print(it.next());
